@@ -91,7 +91,29 @@
                         <div class="contact-section">
                             <h3>Связаться со мной</h3>
                             <p>Если у вас есть вопросы или вы хотите обсудить проект, не стесняйтесь обращаться!</p>
-                            <a href="reviews.html" class="btn btn-primary">Оставить отзыв</a>
+                            
+                            <div class="contact-methods">
+                                <div class="contact-item">
+                                    <div class="contact-icon">📧</div>
+                                    <div class="contact-info">
+                                        <h4>Email</h4>
+                                        <p class="contact-value" id="emailValue">shuxaroot123@gmail.com</p>
+                                        <button class="btn btn-outline btn-small" id="copyEmailBtn">Копировать</button>
+                                        <span class="copy-success" id="copySuccess" style="display: none;">✓ Скопировано!</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="contact-item">
+                                    <div class="contact-icon">💬</div>
+                                    <div class="contact-info">
+                                        <h4>Telegram</h4>
+                                        <p class="contact-value">@decayoptimization</p>
+                                        <a href="https://t.me/decayoptimization" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-small">Написать в Telegram →</a>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <a href="reviews.html" class="btn btn-primary" style="margin-top: 2rem;">Оставить отзыв</a>
                         </div>
                     </div>
                 </div>
@@ -151,6 +173,7 @@
 
     <script src="auth.js"></script>
     <script src="main.js"></script>
+    <script src="contact.js"></script>
 </body>
 </html>
 

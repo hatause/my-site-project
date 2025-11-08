@@ -908,10 +908,76 @@ body {
     letter-spacing: -0.01em;
 }
 
-.contact-section p {
+.contact-section > p {
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+    line-height: 1.8;
+}
+
+.contact-methods {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+.contact-item {
+    background: var(--bg-secondary);
+    padding: var(--spacing-xl);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    gap: var(--spacing-md);
+    transition: all var(--transition-base);
+}
+
+.contact-item:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--black);
+}
+
+.contact-icon {
+    font-size: 2.5rem;
+    filter: grayscale(100%);
+    transition: filter var(--transition-base);
+    flex-shrink: 0;
+}
+
+.contact-item:hover .contact-icon {
+    filter: grayscale(0%);
+}
+
+.contact-info {
+    flex: 1;
+}
+
+.contact-info h4 {
+    font-size: 1.15rem;
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-primary);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.contact-value {
     color: var(--text-secondary);
     margin-bottom: var(--spacing-md);
-    line-height: 1.8;
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+    word-break: break-all;
+}
+
+.btn-small {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9rem;
+}
+
+.copy-success {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-left: var(--spacing-xs);
+    font-weight: 500;
 }
 
 /* ============================================

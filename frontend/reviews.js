@@ -18,10 +18,25 @@ async function loadReviews() {
     try {
         if (loadingSpinner) loadingSpinner.style.display = 'block';
         
-        const response = await fetch(`${API_URL}/reviews`);
+        const response = await fetch(`${API_URL}/reviews`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const reviews = await response.json();
         
         if (loadingSpinner) loadingSpinner.style.display = 'none';
+        
+        // Проверка на массив
+        if (!Array.isArray(reviews)) {
+            throw new Error('Invalid response format');
+        }
         
         if (reviews.length === 0) {
             reviewsContainer.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Пока нет отзывов. Будьте первым!</p>';
@@ -40,8 +55,8 @@ async function loadReviews() {
         `).join('');
     } catch (error) {
         if (loadingSpinner) loadingSpinner.style.display = 'none';
-        reviewsContainer.innerHTML = '<p style="text-align: center; color: var(--error-color); padding: 2rem;">Ошибка при загрузке отзывов</p>';
-        console.error('Ошибка:', error);
+        reviewsContainer.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Ошибка при загрузке отзывов: ${error.message}</p>`;
+        console.error('Ошибка загрузки отзывов:', error);
     }
 }
 
