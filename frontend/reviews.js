@@ -1,4 +1,12 @@
-const API_URL = 'http://localhost:3000/api';
+// API базовый URL - автоматически определяется в зависимости от окружения
+const API_URL = (() => {
+    // Если на production домене (sizizxc.me), используем относительный путь
+    if (window.location.hostname === 'sizizxc.me' || window.location.hostname === 'www.sizizxc.me') {
+        return '/api';
+    }
+    // Для локальной разработки
+    return 'http://localhost:3000/api';
+})();
 
 // Загрузка отзывов
 async function loadReviews() {
