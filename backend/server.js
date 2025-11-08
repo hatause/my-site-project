@@ -47,23 +47,47 @@ app.get('/about.html', (req, res) => {
 });
 
 // Инициализация базы данных PostgreSQL
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false
-});
+let pool;
 
-// Проверка подключения к БД
-pool.on('connect', () => {
-    console.log('✅ Подключение к PostgreSQL успешно установлено');
-});
+try {
+    pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.DATABASE_URL?.includes('sslmode=require') || process.env.DATABASE_URL?.includes('neon.tech') 
+            ? { rejectUnauthorized: false } 
+            : false,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    });
 
-pool.on('error', (err) => {
-    console.error('❌ Ошибка подключения к PostgreSQL:', err);
-});
+    // Проверка подключения к БД
+    pool.on('connect', () => {
+        console.log('✅ Подключение к PostgreSQL успешно установлено');
+    });
+
+    pool.on('error', (err) => {
+        console.error('❌ Ошибка подключения к PostgreSQL:', err);
+    });
+} catch (error) {
+    console.error('❌ Ошибка создания пула подключений:', error);
+    process.exit(1);
+}
+
+// Флаг готовности БД
+let dbReady = false;
 
 // Создание таблиц
 async function initializeDatabase() {
+    if (!pool) {
+        console.error('❌ Пул подключений не инициализирован');
+        return;
+    }
+
     try {
+        // Проверка подключения
+        await pool.query('SELECT NOW()');
+        console.log('✅ Подключение к PostgreSQL успешно установлено');
+
         // Таблица пользователей
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
@@ -97,14 +121,23 @@ async function initializeDatabase() {
             CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC)
         `);
 
+        dbReady = true;
         console.log('✅ Таблицы базы данных инициализированы');
     } catch (error) {
         console.error('❌ Ошибка инициализации базы данных:', error);
+        console.error('Детали ошибки:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail
+        });
+        dbReady = false;
     }
 }
 
 // Инициализация при запуске
-initializeDatabase();
+initializeDatabase().catch(err => {
+    console.error('❌ Критическая ошибка при инициализации БД:', err);
+});
 
 // Middleware для проверки JWT токена
 const authenticateToken = (req, res, next) => {
@@ -135,6 +168,12 @@ app.post('/api/register', [
         return res.status(400).json({ errors: errors.array() });
     }
 
+    // Проверка готовности БД
+    if (!dbReady || !pool) {
+        console.error('❌ База данных не готова');
+        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    }
+
     const { username, email, password } = req.body;
 
     try {
@@ -144,6 +183,10 @@ app.post('/api/register', [
             'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email',
             [username, email, hashedPassword]
         );
+
+        if (!result.rows || result.rows.length === 0) {
+            throw new Error('Не удалось создать пользователя');
+        }
 
         const user = result.rows[0];
 
@@ -159,11 +202,31 @@ app.post('/api/register', [
             user: { id: user.id, username: user.username, email: user.email }
         });
     } catch (error) {
+        console.error('❌ Ошибка регистрации:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail,
+            constraint: error.constraint
+        });
+
         if (error.code === '23505') { // UNIQUE violation
+            if (error.constraint === 'users_username_key') {
+                return res.status(400).json({ error: 'Пользователь с таким именем уже существует' });
+            }
+            if (error.constraint === 'users_email_key') {
+                return res.status(400).json({ error: 'Пользователь с таким email уже существует' });
+            }
             return res.status(400).json({ error: 'Пользователь с таким именем или email уже существует' });
         }
-        console.error('Ошибка регистрации:', error);
-        res.status(500).json({ error: 'Ошибка при создании пользователя' });
+
+        if (error.code === '23503') { // FOREIGN KEY violation
+            return res.status(400).json({ error: 'Ошибка целостности данных' });
+        }
+
+        res.status(500).json({ 
+            error: 'Ошибка при создании пользователя',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 
@@ -175,6 +238,12 @@ app.post('/api/login', [
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
+    }
+
+    // Проверка готовности БД
+    if (!dbReady || !pool) {
+        console.error('❌ База данных не готова');
+        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
     }
 
     const { email, password } = req.body;
@@ -204,20 +273,32 @@ app.post('/api/login', [
             user: { id: user.id, username: user.username, email: user.email }
         });
     } catch (error) {
-        console.error('Ошибка входа:', error);
+        console.error('❌ Ошибка входа:', {
+            message: error.message,
+            code: error.code
+        });
         res.status(500).json({ error: 'Ошибка сервера' });
     }
 });
 
 // Получить все отзывы
 app.get('/api/reviews', async (req, res) => {
+    // Проверка готовности БД
+    if (!dbReady || !pool) {
+        console.error('❌ База данных не готова');
+        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    }
+
     try {
         const result = await pool.query(
             'SELECT * FROM reviews ORDER BY created_at DESC'
         );
-        res.json(result.rows);
+        res.json(result.rows || []);
     } catch (error) {
-        console.error('Ошибка получения отзывов:', error);
+        console.error('❌ Ошибка получения отзывов:', {
+            message: error.message,
+            code: error.code
+        });
         res.status(500).json({ error: 'Ошибка при получении отзывов' });
     }
 });
@@ -232,6 +313,12 @@ app.post('/api/reviews', authenticateToken, [
         return res.status(400).json({ errors: errors.array() });
     }
 
+    // Проверка готовности БД
+    if (!dbReady || !pool) {
+        console.error('❌ База данных не готова');
+        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    }
+
     const { rating, comment } = req.body;
     const { id: user_id, username } = req.user;
 
@@ -241,12 +328,20 @@ app.post('/api/reviews', authenticateToken, [
             [user_id, username, rating, comment]
         );
 
+        if (!result.rows || result.rows.length === 0) {
+            throw new Error('Не удалось создать отзыв');
+        }
+
         res.status(201).json({
             message: 'Отзыв успешно добавлен',
             review: result.rows[0]
         });
     } catch (error) {
-        console.error('Ошибка создания отзыва:', error);
+        console.error('❌ Ошибка создания отзыва:', {
+            message: error.message,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Ошибка при создании отзыва' });
     }
 });
