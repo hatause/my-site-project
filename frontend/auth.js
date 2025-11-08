@@ -153,8 +153,16 @@ function initRegisterForm() {
                 registerForm.reset();
                 if (errorElement) errorElement.textContent = '';
                 alert('Регистрация успешна!');
+                // Обновляем форму отзывов на странице отзывов
                 if (window.location.pathname.includes('reviews.html')) {
-                    window.location.reload();
+                    if (window.toggleReviewForm) {
+                        window.toggleReviewForm();
+                    }
+                    if (window.loadReviews) {
+                        window.loadReviews();
+                    }
+                } else {
+                    window.location.href = 'reviews.html';
                 }
             } else {
                 if (errorElement) {
@@ -200,8 +208,16 @@ function initLoginForm() {
                 loginForm.reset();
                 if (errorElement) errorElement.textContent = '';
                 alert('Вход выполнен успешно!');
+                // Обновляем форму отзывов на странице отзывов
                 if (window.location.pathname.includes('reviews.html')) {
-                    window.location.reload();
+                    if (window.toggleReviewForm) {
+                        window.toggleReviewForm();
+                    }
+                    if (window.loadReviews) {
+                        window.loadReviews();
+                    }
+                } else {
+                    window.location.href = 'reviews.html';
                 }
             } else {
                 if (errorElement) {

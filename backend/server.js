@@ -374,16 +374,25 @@ app.get('/api/reviews', async (req, res) => {
     }
 
     try {
+        console.log('📥 Запрос на получение отзывов');
         const result = await pool.query(
             'SELECT * FROM reviews ORDER BY created_at DESC'
         );
+        
+        console.log(`✅ Найдено отзывов: ${result.rows.length}`);
+        
+        // Возвращаем пустой массив, если отзывов нет
         res.json(result.rows || []);
     } catch (error) {
         console.error('❌ Ошибка получения отзывов:', {
             message: error.message,
-            code: error.code
+            code: error.code,
+            stack: error.stack
         });
-        res.status(500).json({ error: 'Ошибка при получении отзывов' });
+        res.status(500).json({ 
+            error: 'Ошибка при получении отзывов',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 

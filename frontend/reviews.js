@@ -8,25 +8,50 @@ const API_URL = (() => {
     return 'http://localhost:3000/api';
 })();
 
-// Загрузка отзывов
+// Загрузка отзывов с таймаутом
 async function loadReviews() {
     const reviewsContainer = document.getElementById('reviewsContainer');
     const loadingSpinner = document.getElementById('loadingSpinner');
     
-    if (!reviewsContainer) return;
+    if (!reviewsContainer) {
+        console.error('❌ reviewsContainer не найден');
+        return;
+    }
     
     try {
         if (loadingSpinner) loadingSpinner.style.display = 'block';
         
-        const response = await fetch(`${API_URL}/reviews`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
+        // Добавляем таймаут для запроса
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 секунд
+        
+        let response;
+        try {
+            response = await fetch(`${API_URL}/reviews`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                throw new Error('Превышено время ожидания ответа от сервера');
             }
-        });
+            throw fetchError;
+        }
         
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { error: errorText || `HTTP error! status: ${response.status}` };
+            }
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
         
         const reviews = await response.json();
@@ -35,7 +60,8 @@ async function loadReviews() {
         
         // Проверка на массив
         if (!Array.isArray(reviews)) {
-            throw new Error('Invalid response format');
+            console.error('❌ Неверный формат ответа:', reviews);
+            throw new Error('Неверный формат ответа от сервера');
         }
         
         if (reviews.length === 0) {
@@ -46,17 +72,23 @@ async function loadReviews() {
         reviewsContainer.innerHTML = reviews.map(review => `
             <div class="review-card">
                 <div class="review-header">
-                    <span class="review-author">${escapeHtml(review.username)}</span>
+                    <span class="review-author">${escapeHtml(review.username || 'Анонимный пользователь')}</span>
                     <span class="review-date">${formatDate(review.created_at)}</span>
                 </div>
-                <div class="review-rating">${'★'.repeat(review.rating)}${'☆'.repeat(5 - review.rating)}</div>
-                <div class="review-comment">${escapeHtml(review.comment)}</div>
+                <div class="review-rating">${'★'.repeat(review.rating || 0)}${'☆'.repeat(5 - (review.rating || 0))}</div>
+                <div class="review-comment">${escapeHtml(review.comment || '')}</div>
             </div>
         `).join('');
     } catch (error) {
         if (loadingSpinner) loadingSpinner.style.display = 'none';
-        reviewsContainer.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Ошибка при загрузке отзывов: ${error.message}</p>`;
-        console.error('Ошибка загрузки отзывов:', error);
+        const errorMessage = error.message || 'Неизвестная ошибка';
+        console.error('❌ Ошибка загрузки отзывов:', error);
+        reviewsContainer.innerHTML = `
+            <div style="text-align: center; padding: 2rem;">
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Ошибка при загрузке отзывов: ${escapeHtml(errorMessage)}</p>
+                <button onclick="loadReviews()" class="btn btn-outline">Попробовать снова</button>
+            </div>
+        `;
     }
 }
 
@@ -120,8 +152,13 @@ function toggleReviewForm() {
     const addReviewSection = document.getElementById('addReviewSection');
     const loginPrompt = document.getElementById('loginPrompt');
     
+    console.log('🔍 Проверка авторизации для формы отзывов:', user ? 'Пользователь авторизован' : 'Пользователь не авторизован');
+    
     if (user) {
-        if (addReviewSection) addReviewSection.style.display = 'block';
+        if (addReviewSection) {
+            addReviewSection.style.display = 'block';
+            console.log('✅ Форма отзывов показана для авторизованного пользователя');
+        }
         if (loginPrompt) loginPrompt.style.display = 'none';
     } else {
         if (addReviewSection) addReviewSection.style.display = 'none';
@@ -176,8 +213,15 @@ function getDaysWord(days) {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('📄 Страница отзывов загружена');
+    
+    // Загружаем отзывы
     loadReviews();
+    
+    // Инициализируем форму отзывов
     initReviewForm();
+    
+    // Показываем/скрываем форму в зависимости от авторизации
     toggleReviewForm();
     
     // Обновить форму при изменении авторизации
@@ -188,5 +232,22 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleReviewForm();
         };
     }
+    
+    // Также обновляем форму после успешного входа/регистрации
+    // Слушаем события изменения авторизации
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'token') {
+            toggleReviewForm();
+        }
+    });
+    
+    // Проверяем авторизацию при загрузке
+    if (window.checkAuth) {
+        window.checkAuth();
+    }
 });
+
+// Экспорт функций для использования в других файлах
+window.loadReviews = loadReviews;
+window.toggleReviewForm = toggleReviewForm;
 
