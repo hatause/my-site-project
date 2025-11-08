@@ -65,17 +65,32 @@ async function loadReviewsWithRetry(retries = 3) {
 
 ### Выбор базы данных
 
-#### Вариант 1: PostgreSQL (Рекомендуется для production)
+#### Вариант 1: PostgreSQL с Neon (Рекомендуется для production) ✅
 **Преимущества:**
 - ✅ Надежность и масштабируемость
 - ✅ Отличная поддержка в Next.js
 - ✅ Богатый функционал
-- ✅ Бесплатные варианты (Supabase, Neon, Railway)
+- ✅ Neon - бесплатный serverless PostgreSQL
+- ✅ Автоматическое масштабирование
+- ✅ Автоматические бэкапы
 
 **Интеграция:**
 ```bash
 npm install @prisma/client prisma
 npm install pg
+```
+
+**Настройка Neon PostgreSQL:**
+1. Создайте проект на https://neon.tech
+2. Скопируйте Connection String
+3. Добавьте в переменные окружения:
+   ```
+   DATABASE_URL="postgresql://user:password@host/database?sslmode=require"
+   ```
+
+**Пример Connection String для Neon:**
+```
+postgresql://neondb_owner:npg_Z8yYSOgIpKD3@ep-dry-unit-agjm46dy-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require
 ```
 
 #### Вариант 2: MongoDB (Альтернатива)
@@ -654,12 +669,14 @@ export default function ReviewSkeleton() {
 
 ### .env.example
 ```env
-# Database
-DATABASE_URL="postgresql://user:password@localhost:5432/pc_optimizer"
+# Database (Neon PostgreSQL)
+# Для локальной разработки используйте локальный PostgreSQL
+# Для production используйте Neon PostgreSQL Connection String
+DATABASE_URL="postgresql://neondb_owner:npg_Z8yYSOgIpKD3@ep-dry-unit-agjm46dy-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require"
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="your-secret-key-here"
+NEXTAUTH_SECRET="your-secret-key-here-min-32-chars"
 
 # Rate Limiting (Upstash)
 UPSTASH_REDIS_REST_URL=""
@@ -668,6 +685,12 @@ UPSTASH_REDIS_REST_TOKEN=""
 # Production
 NODE_ENV="production"
 ```
+
+**⚠️ ВАЖНО**: 
+- НЕ коммитьте реальный `.env` файл в Git
+- Используйте `.env.example` только как шаблон
+- На Render добавьте `DATABASE_URL` в Environment Variables
+- Connection String должен быть только в переменных окружения на production
 
 ### next.config.js
 ```javascript
@@ -736,9 +759,10 @@ CMD ["npm", "start"]
 ## ✅ Чеклист реализации
 
 ### Приоритет 1 (Критично)
-- [ ] Устранение проблемы с бесконечной загрузкой отзывов
-- [ ] Настройка базы данных (PostgreSQL)
-- [ ] Миграция данных из SQLite
+- [x] Устранение проблемы с бесконечной загрузкой отзывов ✅
+- [x] Настройка базы данных (PostgreSQL с Neon) ✅
+- [x] Настройка Connection String для Neon ✅
+- [ ] Миграция данных из SQLite (если нужно)
 - [ ] Настройка аутентификации (NextAuth.js)
 - [ ] Защита API роутов
 

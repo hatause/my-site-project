@@ -11,6 +11,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
+// ⚠️ ВАЖНО: DATABASE_URL должен быть в переменных окружения на Render!
+// Пример Connection String для Neon PostgreSQL:
+// DATABASE_URL="postgresql://neondb_owner:npg_Z8yYSOgIpKD3@ep-dry-unit-agjm46dy-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+// 
+// НЕ добавляйте Connection String прямо в код! Используйте только переменные окружения.
+
 // CORS настройки
 const corsOptions = {
     origin: [
@@ -46,10 +52,20 @@ app.get('/about.html', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/about.html'));
 });
 
-// Инициализация базы данных PostgreSQL
+// Инициализация базы данных PostgreSQL (Neon)
+// Подключение к Neon PostgreSQL через переменную окружения DATABASE_URL
+// Пример Connection String:
+// postgresql://neondb_owner:npg_Z8yYSOgIpKD3@ep-dry-unit-agjm46dy-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require
+
 let pool;
 
 try {
+    if (!process.env.DATABASE_URL) {
+        console.error('❌ DATABASE_URL не настроен в переменных окружения!');
+        console.error('⚠️  Добавьте DATABASE_URL в Environment Variables на Render');
+        console.error('📝 Пример: postgresql://user:password@host/database?sslmode=require');
+    }
+
     pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: process.env.DATABASE_URL?.includes('sslmode=require') || process.env.DATABASE_URL?.includes('neon.tech') 
@@ -135,9 +151,35 @@ async function initializeDatabase() {
 }
 
 // Инициализация при запуске
-initializeDatabase().catch(err => {
-    console.error('❌ Критическая ошибка при инициализации БД:', err);
-});
+async function startServer() {
+    try {
+        // Ждем инициализации БД
+        await initializeDatabase();
+        
+        if (!dbReady) {
+            console.error('❌ Не удалось инициализировать базу данных');
+            console.error('⚠️  Сервер будет запущен, но БД может быть не готова');
+            // Не останавливаем сервер, но предупреждаем
+        }
+
+        // Запуск сервера только после инициализации БД
+        app.listen(PORT, () => {
+            console.log(`🚀 Сервер запущен на порту ${PORT}`);
+            console.log(`📊 База данных: ${dbReady ? '✅ Готова' : '❌ Не готова'}`);
+            if (process.env.DATABASE_URL) {
+                console.log(`🔗 Подключение: PostgreSQL (Neon)`);
+            } else {
+                console.log(`⚠️  DATABASE_URL не настроен`);
+            }
+        });
+    } catch (error) {
+        console.error('❌ Критическая ошибка при запуске сервера:', error);
+        process.exit(1);
+    }
+}
+
+// Запускаем сервер
+startServer();
 
 // Middleware для проверки JWT токена
 const authenticateToken = (req, res, next) => {
@@ -169,9 +211,23 @@ app.post('/api/register', [
     }
 
     // Проверка готовности БД
-    if (!dbReady || !pool) {
-        console.error('❌ База данных не готова');
-        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    if (!pool) {
+        console.error('❌ Пул подключений не инициализирован');
+        return res.status(503).json({ error: 'База данных не настроена. Обратитесь к администратору.' });
+    }
+
+    if (!dbReady) {
+        console.log('⏳ База данных не готова, попытка переинициализации...');
+        // Попытка переинициализации
+        try {
+            await initializeDatabase();
+            if (!dbReady) {
+                return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+            }
+        } catch (error) {
+            console.error('❌ Ошибка переинициализации:', error);
+            return res.status(503).json({ error: 'База данных недоступна. Попробуйте позже.' });
+        }
     }
 
     const { username, email, password } = req.body;
@@ -241,9 +297,23 @@ app.post('/api/login', [
     }
 
     // Проверка готовности БД
-    if (!dbReady || !pool) {
-        console.error('❌ База данных не готова');
-        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    if (!pool) {
+        console.error('❌ Пул подключений не инициализирован');
+        return res.status(503).json({ error: 'База данных не настроена. Обратитесь к администратору.' });
+    }
+
+    if (!dbReady) {
+        console.log('⏳ База данных не готова, попытка переинициализации...');
+        // Попытка переинициализации
+        try {
+            await initializeDatabase();
+            if (!dbReady) {
+                return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+            }
+        } catch (error) {
+            console.error('❌ Ошибка переинициализации:', error);
+            return res.status(503).json({ error: 'База данных недоступна. Попробуйте позже.' });
+        }
     }
 
     const { email, password } = req.body;
@@ -284,9 +354,23 @@ app.post('/api/login', [
 // Получить все отзывы
 app.get('/api/reviews', async (req, res) => {
     // Проверка готовности БД
-    if (!dbReady || !pool) {
-        console.error('❌ База данных не готова');
-        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    if (!pool) {
+        console.error('❌ Пул подключений не инициализирован');
+        return res.status(503).json({ error: 'База данных не настроена. Обратитесь к администратору.' });
+    }
+
+    if (!dbReady) {
+        console.log('⏳ База данных не готова, попытка переинициализации...');
+        // Попытка переинициализации
+        try {
+            await initializeDatabase();
+            if (!dbReady) {
+                return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+            }
+        } catch (error) {
+            console.error('❌ Ошибка переинициализации:', error);
+            return res.status(503).json({ error: 'База данных недоступна. Попробуйте позже.' });
+        }
     }
 
     try {
@@ -314,9 +398,23 @@ app.post('/api/reviews', authenticateToken, [
     }
 
     // Проверка готовности БД
-    if (!dbReady || !pool) {
-        console.error('❌ База данных не готова');
-        return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+    if (!pool) {
+        console.error('❌ Пул подключений не инициализирован');
+        return res.status(503).json({ error: 'База данных не настроена. Обратитесь к администратору.' });
+    }
+
+    if (!dbReady) {
+        console.log('⏳ База данных не готова, попытка переинициализации...');
+        // Попытка переинициализации
+        try {
+            await initializeDatabase();
+            if (!dbReady) {
+                return res.status(503).json({ error: 'База данных не готова. Попробуйте позже.' });
+            }
+        } catch (error) {
+            console.error('❌ Ошибка переинициализации:', error);
+            return res.status(503).json({ error: 'База данных недоступна. Попробуйте позже.' });
+        }
     }
 
     const { rating, comment } = req.body;
@@ -351,11 +449,7 @@ app.get('/api/me', authenticateToken, (req, res) => {
     res.json({ user: req.user });
 });
 
-// Запуск сервера
-app.listen(PORT, () => {
-    console.log(`🚀 Сервер запущен на порту ${PORT}`);
-    console.log(`📊 База данных: ${process.env.DATABASE_URL ? 'PostgreSQL (Neon)' : 'Не настроена'}`);
-});
+// Запуск сервера теперь происходит в startServer()
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
